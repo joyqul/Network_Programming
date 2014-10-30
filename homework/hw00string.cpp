@@ -18,6 +18,7 @@ void SplitString() {
     string split;
     int num = 0;
     while (getline(iss, split, token)) {
+        if (split == "") continue;
         if (num) cout << " ";
         cout << split;
         ++num;
