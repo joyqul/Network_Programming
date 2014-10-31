@@ -1,3 +1,4 @@
 a.out
 *.c
-daytime
+daytime/daytime
+daytime/daytimeServer

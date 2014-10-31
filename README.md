@@ -4,4 +4,7 @@
     - simple string practice
     
 # Practice #01: daytime client
-- daytime.cpp    
+- daytime/daytime.cpp    
+
+# Practice #02: daytime server
+- daytime/daytimeServer.cpp
