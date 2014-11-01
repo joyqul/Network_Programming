@@ -4,3 +4,4 @@ daytime/daytime
 daytime/daytimeServer
 echo/echo
 echo/echoServer
+select/echoServer
