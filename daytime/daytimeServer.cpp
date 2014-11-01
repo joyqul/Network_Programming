@@ -91,7 +91,18 @@ int main (int argc, char* argv[]) {
         /* generate a time stamp */
         time_t timestamp;
         time(&timestamp);
-        string pre_str = "Hi, there!\nThis is joyqul's daytime server (i__i)\nThe Time is: \n";
+        /* client's address */
+        char client_addr_buff[BUF_SiZE];
+        inet_ntop(AF_INET, &client_socket_info.sin_addr, client_addr_buff, sizeof(client_addr_buff));
+        string client_addr= client_addr_buff;
+        /* client's port */
+        int client_port_num = ntohs(client_socket_info.sin_port);
+        char client_port_buff[BUF_SiZE];
+        sprintf(client_port_buff, "%d", client_port_num);
+        string client_port = client_port_buff;
+        /* output string */
+        string pre_str = "Hi, " + client_addr + ":" + client_port + "\n";
+        pre_str = pre_str + "This is joyqul's daytime server (i__i)\nThe Time is: \n";
         char daytime_buf[BUF_SiZE];
         strftime(daytime_buf, sizeof(daytime_buf), 
                 "%A %b %d %H:%M:%S %Y (i__i)\n",
