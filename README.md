@@ -8,3 +8,10 @@
 
 # Practice #02: daytime server
 - daytime/daytimeServer.cpp
+
+# Practice #03: readline
+- lib/readline.cpp
+- lib/readline.h
+
+# Practice #04: Echo Server
+- echo/echoServer.cpp
