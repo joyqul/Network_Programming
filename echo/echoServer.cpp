@@ -10,6 +10,7 @@
 #include <arpa/inet.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/wait.h>
 #include "../lib/readline.h"
 #define BUF_SiZE 256
 #define QUE_SIZE 10
@@ -96,6 +97,7 @@ int main (int argc, char* argv[]) {
         return 1;
     }
 
+    signal(SIGCHLD, SIG_IGN);
     /* start the server loop */
     struct sockaddr_in client_socket_info; // in netinet/in.h
     while (1) {
