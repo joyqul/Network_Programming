@@ -102,7 +102,7 @@ int main (int argc, char* argv[]) {
         string client_port = client_port_buff;
         /* output string */
         string pre_str = "Hi, " + client_addr + ":" + client_port + "\n";
-        pre_str = pre_str + "This is joyqul's daytime server (i__i)\nThe Time is: \n";
+        pre_str = pre_str + "This is " + server_addr + ":" + server_port + "(i__i)\nThe Time is: \n";
         char daytime_buf[BUF_SiZE];
         strftime(daytime_buf, sizeof(daytime_buf), 
                 "%A %b %d %H:%M:%S %Y (i__i)\n",
