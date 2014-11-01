@@ -10,7 +10,7 @@
 #include <arpa/inet.h>
 #include <sys/types.h>
 #include <sys/socket.h>
-#include "readline.h"
+#include "../lib/readline.h"
 #define BUF_SiZE 256
 #define QUE_SIZE 10
 
