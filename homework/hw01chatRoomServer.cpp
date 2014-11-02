@@ -18,8 +18,33 @@
 
 using namespace std;
 
+struct CLIENT {
+    int id;
+    string name, ip, port;
+} client[MAX_CLIENT];
+
 static void bail(string on_what) {
     cerr << strerror(errno) << ": " << on_what << "\n";
+}
+
+static void check_server_capacity(int myclient) {
+    for (int client_entry = 0; client_entry < MAX_CLIENT; ++client_entry) {
+        if (client[client_entry].id < 0) {
+            client[client_entry].id = myclient;
+            client[client_entry].name = "anonymous";
+            return;
+        }
+    }
+    string message = "Too many client, so buzy :/\n";
+    write(myclient, message.c_str(), message.size());
+    close(myclient);
+}
+
+static void broadcast(string message, int max_fd) {
+    for (int i = 0; i < max_fd; ++i) {
+        if (client[i].id < 0) continue;
+        write(client[i].id, message.c_str(), message.size());
+    }
 }
 
 int main (int argc, char* argv[]) {
@@ -90,9 +115,8 @@ int main (int argc, char* argv[]) {
     struct timeval timeout_value;
 
     /* initialize to client */
-    int client[MAX_CLIENT];
     for (int i = 0i; i < MAX_CLIENT; ++i) {
-        client[i] = -1; // -1 means available
+        client[i].id = -1; // -1 means available
     }
 
     /* start the server loop */
@@ -105,11 +129,8 @@ int main (int argc, char* argv[]) {
                 FD_SET(i, &working_set);
             }
         }
-
-        /* set the time out 20.4s */
-        timeout_value.tv_sec = 20;
-        timeout_value.tv_usec = 400000;
-
+        
+        /* check ready */
         int nready = select(max_fd, &working_set, NULL, NULL, &timeout_value);
         if (nready == -1) {
             bail("select(2)");
@@ -119,6 +140,7 @@ int main (int argc, char* argv[]) {
             cout << "Timeout.\n";
             continue;
         }
+
 
         /* check if a connect has occured */
         if (FD_ISSET(listen_socket, &working_set)) {
@@ -130,18 +152,8 @@ int main (int argc, char* argv[]) {
                 bail("accept(2)");
             }
 
-            /* check if exceeded server capacity */
-            int client_entry;
-            for (client_entry = 0; client_entry < MAX_CLIENT; ++client_entry) {
-                if (client[client_entry] < 0) {
-                    client[client_entry] = myclient;
-                    break;
-                }
-            }
-            if (client_entry == MAX_CLIENT) {
-                close(myclient);
-                cout << "Too many client\n";
-            }
+            /* check if exceeded server capacity, if not full, add it to client */
+            check_server_capacity(myclient);
 
             /* set connect to the set */
             FD_SET(myclient, &read_set);
@@ -152,21 +164,17 @@ int main (int argc, char* argv[]) {
             /* client's address */
             char client_addr_buff[BUF_SiZE];
             inet_ntop(AF_INET, &client_socket_info.sin_addr, client_addr_buff, sizeof(client_addr_buff));
-            string client_addr = client_addr_buff;
+            client[myclient].ip = client_addr_buff;
             /* client's port */
             int client_port_num = ntohs(client_socket_info.sin_port);
             char client_port_buff[BUF_SiZE];
             sprintf(client_port_buff, "%d", client_port_num);
-            string client_port = client_port_buff;
-            welcome_message = welcome_message + client_addr + "/" + client_port + "\n";
+            client[myclient].port = client_port_buff;
+            welcome_message = welcome_message + client[myclient].ip + "/" + client[myclient].port + "\n";
             write(myclient, welcome_message.c_str(), welcome_message.size());
 
             /* to other client */
-            string bingling = "[Server] Someone is coming!\n";
-            for (int i = 0; i < max_fd; ++i) {
-                if (client[i] < 0) continue;
-                write(client[i], bingling.c_str(), bingling.size());
-            }
+            broadcast("[Server] Someone is coming!\n", max_fd);
 
             /* no more descriptors */
             if (--nready <= 0) continue;
@@ -176,18 +184,21 @@ int main (int argc, char* argv[]) {
         char line[BUF_SiZE];
         bzero(line, BUF_SiZE);
         for (int i = 0; i < max_fd; ++i) {
-            int myclient = client[i];
+            int myclient = client[i].id;
             if ( myclient < 0) continue;
             if (FD_ISSET(myclient, &working_set)) {
                 /* connection closed by client */
                 if ( (check = readline(myclient, line, BUF_SiZE)) == 0 ) {
                     close(myclient);
                     FD_CLR(myclient, &read_set);
-                    client[i] = -1;
+                    client[i].id = -1;
+                    string message = client[i].name + "is offline.\n";
+                    broadcast(message, max_fd);
                     break;
                 }
                 else {
-                    write(myclient, line, sizeof(line));
+                    string message = client[i].name + " yell " + line;
+                    broadcast(message, max_fd);
                 }
             }
         }
