@@ -14,7 +14,7 @@
 #include "../lib/readline.h"
 #define BUF_SiZE 256
 #define QUE_SIZE 10
-#define MAX_CLIENT 20
+#define MAX_CLIENT 2
 
 using namespace std;
 
@@ -27,27 +27,45 @@ static void bail(string on_what) {
     cerr << strerror(errno) << ": " << on_what << "\n";
 }
 
-static void check_server_capacity(int myclient) {
+static int check_server_capacity(int myclient) {
     for (int client_entry = 0; client_entry < MAX_CLIENT; ++client_entry) {
         if (client[client_entry].id < 0) {
             client[client_entry].id = myclient;
             client[client_entry].name = "anonymous";
-            return;
+            return client_entry;
         }
     }
     string message = "Too many client, so buzy :/\n";
     write(myclient, message.c_str(), message.size());
     close(myclient);
+    return -1;
 }
 
 static void broadcast(string message, int max_fd) {
-    for (int i = 0; i < max_fd; ++i) {
+    for (int i = 0; i < MAX_CLIENT; ++i) {
         if (client[i].id < 0) continue;
         write(client[i].id, message.c_str(), message.size());
     }
 }
 
+static void show_who(int me, int max_fd) {
+    string message;
+    for (int i = 0; i < MAX_CLIENT; ++i) {
+        if (client[i].id < 0) continue;
+        message = message + "[Server] " + client[i].name + " " +
+            client[i].ip + "/" + client[i].port;
+        if (i == me) {
+            message = message + " <-me";
+        }
+        message = message + "\n";
+    }
+    write(client[me].id, message.c_str(), message.size());
+}
+
 int main (int argc, char* argv[]) {
+    /* instruction */
+    char who[] = "who";
+
     /* give server address in command line */
     string server_addr;
     if (argc >= 2) {
@@ -153,7 +171,9 @@ int main (int argc, char* argv[]) {
             }
 
             /* check if exceeded server capacity, if not full, add it to client */
-            check_server_capacity(myclient);
+            int client_id = check_server_capacity(myclient);
+            if (client_id == -1 && --nready <= 0) continue;
+            if (client_id == -1) break;
 
             /* set connect to the set */
             FD_SET(myclient, &read_set);
@@ -164,13 +184,13 @@ int main (int argc, char* argv[]) {
             /* client's address */
             char client_addr_buff[BUF_SiZE];
             inet_ntop(AF_INET, &client_socket_info.sin_addr, client_addr_buff, sizeof(client_addr_buff));
-            client[myclient].ip = client_addr_buff;
+            client[client_id].ip = client_addr_buff;
             /* client's port */
             int client_port_num = ntohs(client_socket_info.sin_port);
             char client_port_buff[BUF_SiZE];
             sprintf(client_port_buff, "%d", client_port_num);
-            client[myclient].port = client_port_buff;
-            welcome_message = welcome_message + client[myclient].ip + "/" + client[myclient].port + "\n";
+            client[client_id].port = client_port_buff;
+            welcome_message = welcome_message + client[client_id].ip + "/" + client[client_id].port + "\n";
             write(myclient, welcome_message.c_str(), welcome_message.size());
 
             /* to other client */
@@ -197,8 +217,16 @@ int main (int argc, char* argv[]) {
                     break;
                 }
                 else {
-                    string message = client[i].name + " yell " + line;
-                    broadcast(message, max_fd);
+                    char cmp[BUF_SiZE];
+                    strncpy(cmp, line, 3);
+                    if ( strcmp(cmp, who) == 0 ) {
+                        show_who(i, max_fd);
+                    }
+                    
+                    else {
+                        string message = client[i].name + " yell " + line;
+                        broadcast(message, max_fd);
+                    }
                 }
             }
         }
