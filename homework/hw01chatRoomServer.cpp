@@ -13,7 +13,7 @@
 #include <sys/socket.h>
 #include <sys/wait.h>
 #include "../lib/readline.h"
-#define BUF_SIZE 512
+#define BUF_SIZE 256
 #define QUE_SIZE 10
 #define MAX_CLIENT 20
 
@@ -318,12 +318,18 @@ int main (int argc, char* argv[]) {
                     broadcast(message, max_fd);
                     break;
                 }
+                else if (check == BUF_SIZE) {
+                    while ( (check = readline(myclient, line, BUF_SIZE)) == BUF_SIZE) ;
+                    string message = "[Server] ERROR: String too long, maximun is 256\n";
+                    write(myclient, message.c_str(), message.size());
+                }
                 else {
                     char who_cmp[BUF_SIZE], name_cmp[BUF_SIZE], tell_cmp[BUF_SIZE], yell_cmp[BUF_SIZE];
                     strncpy(who_cmp, line, 3); who_cmp[3] = '\0';
                     strncpy(name_cmp, line, 4); name_cmp[4] = '\0';
                     strncpy(tell_cmp, line, 4); tell_cmp[4] = '\0';
                     strncpy(yell_cmp, line, 4); yell_cmp[4] = '\0';
+
                     if (strcmp(who_cmp, who) == 0) {
                         show_who(i, max_fd);
                     }
