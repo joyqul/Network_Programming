@@ -68,13 +68,13 @@ static void change_name(int me, string target, int max_fd) {
     string new_name, message;
 
     // check size
-    if (target.size() < 9 || target.size() > 19) {
+    if (target.size() < 8 || target.size() > 18) {
         message = "[Server] ERROR: Username can only consists of 2~12 English letters\n";
         write(client[me].id, message.c_str(), message.size());
         return;
     }
 
-    for (int i = 5; i < target.size()-2; ++i) {
+    for (int i = 5; i < target.size()-1; ++i) {
         if (!isalpha(target[i])) {
             message = "[Server] ERROR: Username can only consists of 2~12 English letters\n";
             write(client[me].id, message.c_str(), message.size());
@@ -120,7 +120,7 @@ static void tell_message(int me, string target, int max_fd) {
     // get the receiver name
     string receiver;
     int st;
-    for (st = 5; st < target.size()-2; ++st) {
+    for (st = 5; st < target.size()-1; ++st) {
         if (!isalpha(target[st])) break;
         receiver += target[st];
     }
@@ -151,7 +151,7 @@ static void tell_message(int me, string target, int max_fd) {
     }
 
     // send message
-    for (; st < target.size()-2; ++st) {
+    for (; st < target.size()-1; ++st) {
         message += target[st];
     }
 
@@ -314,7 +314,7 @@ int main (int argc, char* argv[]) {
                     close(myclient);
                     FD_CLR(myclient, &read_set);
                     client[i].id = -1;
-                    string message = client[i].name + "is offline.\n";
+                    string message = client[i].name + " is offline.\n";
                     broadcast(message, max_fd);
                     break;
                 }
@@ -336,7 +336,7 @@ int main (int argc, char* argv[]) {
                         tell_message(i, target, max_fd);
                     }
                     else if (strcmp(yell_cmp, yell) == 0) {
-                        string message = client[i].name + " yell " + line;
+                        string message = client[i].name + " " + line;
                         broadcast(message, max_fd);
                     }
                     else {
