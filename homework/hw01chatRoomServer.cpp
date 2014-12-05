@@ -3,6 +3,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <ctime>
+#include <string>
 #include <unistd.h>
 #include <errno.h>
 #include <netinet/in.h>
@@ -12,9 +13,9 @@
 #include <sys/socket.h>
 #include <sys/wait.h>
 #include "../lib/readline.h"
-#define BUF_SiZE 256
+#define BUF_SIZE 512
 #define QUE_SIZE 10
-#define MAX_CLIENT 2
+#define MAX_CLIENT 20
 
 using namespace std;
 
@@ -42,7 +43,7 @@ static int check_server_capacity(int myclient) {
 }
 
 static void broadcast(string message, int max_fd) {
-    for (int i = 0; i < MAX_CLIENT; ++i) {
+    for (int i = 0; i < max_fd; ++i) {
         if (client[i].id < 0) continue;
         write(client[i].id, message.c_str(), message.size());
     }
@@ -55,16 +56,117 @@ static void show_who(int me, int max_fd) {
         message = message + "[Server] " + client[i].name + " " +
             client[i].ip + "/" + client[i].port;
         if (i == me) {
-            message = message + " <-me";
+            message += " <-me";
         }
-        message = message + "\n";
+
+        message += "\n";
     }
     write(client[me].id, message.c_str(), message.size());
 }
 
+static void change_name(int me, string target, int max_fd) {
+    string new_name, message;
+
+    // check size
+    if (target.size() < 9 || target.size() > 19) {
+        message = "[Server] ERROR: Username can only consists of 2~12 English letters\n";
+        write(client[me].id, message.c_str(), message.size());
+        return;
+    }
+
+    for (int i = 5; i < target.size()-2; ++i) {
+        if (!isalpha(target[i])) {
+            message = "[Server] ERROR: Username can only consists of 2~12 English letters\n";
+            write(client[me].id, message.c_str(), message.size());
+            return;
+        }
+        new_name += target[i];
+    }
+
+    // check format
+    if (strcmp(new_name.c_str(), "anonymous") == 0) {
+        message = "[Server] ERROR: Username cannot be anonymous.\n";
+        write(client[me].id, message.c_str(), message.size());
+        return;
+    }
+
+    // check if is used
+    for (int i = 0; i < MAX_CLIENT; ++i) {
+        if (client[i].id < 0) continue;
+        if (i == me) continue;
+        if (new_name == client[i].name) {
+            message = "[Server] ERROR: " + new_name + "has been used by others.\n";
+            write(client[me].id, message.c_str(), message.size());
+            return;
+        }
+    }
+    
+    // change the name
+    string pre_name = client[me].name;
+    client[me].name = new_name;
+    message = "[Server] You're now known as " + new_name + ".\n";
+    write(client[me].id, message.c_str(), message.size());
+    message = "[Server] " + pre_name + " is now known as " + new_name + ".\n";
+    broadcast(message, max_fd);
+}
+
+static void tell_message(int me, string target, int max_fd) {
+    string message;
+    if (strcmp(client[me].name.c_str(), "anonymous") == 0) {
+        message = "[Server] ERROR: You are anonymous.\n";
+        write(client[me].id, message.c_str(), message.size());
+        return;
+    }
+    // get the receiver name
+    string receiver;
+    int st;
+    for (st = 5; st < target.size()-2; ++st) {
+        if (!isalpha(target[st])) break;
+        receiver += target[st];
+    }
+
+    // check if receiver is anonymous
+    if (strcmp(receiver.c_str(), "anonymous") == 0) {
+        message = "[Server] ERROR: The client to which you sent is anonymous.\n";
+        write(client[me].id, message.c_str(), message.size());
+        return;
+    }
+
+    // get the receiver id
+    int receiver_id = -1;
+    for (int i = 0; i < MAX_CLIENT; ++i) {
+        if (client[i].id < 0) continue;
+        if (i == me) continue;
+        if (strcmp(receiver.c_str(), client[i].name.c_str()) == 0) {
+            receiver_id = i;
+            break;
+        }
+    }
+
+    // check if receiver exist
+    if (receiver_id == -1) {
+        message = "[Server] ERROR: The receiver doesn't exist.\n";
+        write(client[me].id, message.c_str(), message.size());
+        return;
+    }
+
+    // send message
+    for (; st < target.size()-2; ++st) {
+        message += target[st];
+    }
+
+    message = "[Server] " + client[me].name + " tell you" + message + "\n";
+    write(client[receiver_id].id, message.c_str(), message.size());
+    message = "[Server] SUCCESS: Your message has been sent.\n";
+    write(client[me].id, message.c_str(), message.size());
+}
+
 int main (int argc, char* argv[]) {
-    /* instruction */
+    /* check the command */
     char who[] = "who";
+    char name[] = "name";
+    char tell[] = "tell";
+    char yell[] = "yell";
 
     /* give server address in command line */
     string server_addr;
@@ -133,7 +235,7 @@ int main (int argc, char* argv[]) {
     struct timeval timeout_value;
 
     /* initialize to client */
-    for (int i = 0i; i < MAX_CLIENT; ++i) {
+    for (int i = 0; i < MAX_CLIENT; ++i) {
         client[i].id = -1; // -1 means available
     }
 
@@ -171,9 +273,9 @@ int main (int argc, char* argv[]) {
             }
 
             /* check if exceeded server capacity, if not full, add it to client */
-            int client_id = check_server_capacity(myclient);
-            if (client_id == -1 && --nready <= 0) continue;
-            if (client_id == -1) break;
+            int new_id = check_server_capacity(myclient);
+            if (new_id < 0 && --nready <= 0) continue;
+            if (new_id < 0) break;
 
             /* set connect to the set */
             FD_SET(myclient, &read_set);
@@ -182,15 +284,15 @@ int main (int argc, char* argv[]) {
             /* write welcome message */
             string welcome_message = "[Server] Hello, anonymous! From: ";
             /* client's address */
-            char client_addr_buff[BUF_SiZE];
+            char client_addr_buff[BUF_SIZE];
             inet_ntop(AF_INET, &client_socket_info.sin_addr, client_addr_buff, sizeof(client_addr_buff));
-            client[client_id].ip = client_addr_buff;
+            client[new_id].ip = client_addr_buff;
             /* client's port */
             int client_port_num = ntohs(client_socket_info.sin_port);
-            char client_port_buff[BUF_SiZE];
+            char client_port_buff[BUF_SIZE];
             sprintf(client_port_buff, "%d", client_port_num);
-            client[client_id].port = client_port_buff;
-            welcome_message = welcome_message + client[client_id].ip + "/" + client[client_id].port + "\n";
+            client[new_id].port = client_port_buff;
+            welcome_message = welcome_message + client[new_id].ip + "/" + client[new_id].port + "\n";
             write(myclient, welcome_message.c_str(), welcome_message.size());
 
             /* to other client */
@@ -201,14 +303,14 @@ int main (int argc, char* argv[]) {
         }
 
         /* readline */
-        char line[BUF_SiZE];
-        bzero(line, BUF_SiZE);
-        for (int i = 0; i < max_fd; ++i) {
+        char line[BUF_SIZE];
+        bzero(line, BUF_SIZE);
+        for (int i = 0; i < MAX_CLIENT; ++i) {
             int myclient = client[i].id;
             if ( myclient < 0) continue;
             if (FD_ISSET(myclient, &working_set)) {
                 /* connection closed by client */
-                if ( (check = readline(myclient, line, BUF_SiZE)) == 0 ) {
+                if ( (check = readline(myclient, line, BUF_SIZE)) == 0 ) {
                     close(myclient);
                     FD_CLR(myclient, &read_set);
                     client[i].id = -1;
@@ -217,15 +319,29 @@ int main (int argc, char* argv[]) {
                     break;
                 }
                 else {
-                    char cmp[BUF_SiZE];
-                    strncpy(cmp, line, 3);
-                    if ( strcmp(cmp, who) == 0 ) {
+                    char who_cmp[BUF_SIZE], name_cmp[BUF_SIZE], tell_cmp[BUF_SIZE], yell_cmp[BUF_SIZE];
+                    strncpy(who_cmp, line, 3); who_cmp[3] = '\0';
+                    strncpy(name_cmp, line, 4); name_cmp[4] = '\0';
+                    strncpy(tell_cmp, line, 4); tell_cmp[4] = '\0';
+                    strncpy(yell_cmp, line, 4); yell_cmp[4] = '\0';
+                    if (strcmp(who_cmp, who) == 0) {
                         show_who(i, max_fd);
                     }
-                    
-                    else {
+                    else if (strcmp(name_cmp, name) == 0) {
+                        string target = line;
+                        change_name(i, target, max_fd);
+                    }
+                    else if (strcmp(tell_cmp, tell) == 0) {
+                        string target = line;
+                        tell_message(i, target, max_fd);
+                    }
+                    else if (strcmp(yell_cmp, yell) == 0) {
                         string message = client[i].name + " yell " + line;
                         broadcast(message, max_fd);
+                    }
+                    else {
+                        string message = "[Server] ERROR: Error command.\n";
+                        write(myclient, message.c_str(), message.size());
                     }
                 }
             }
