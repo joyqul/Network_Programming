@@ -4,6 +4,7 @@ daytime/daytime
 daytime/daytimeServer
 echo/echo
 echo/echoServer
+echo/echoClient
 select/echoServer
 homework/chatServer
 homework/chatClient
