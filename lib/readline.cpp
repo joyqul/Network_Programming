@@ -3,11 +3,10 @@
 #include <errno.h>
 #include <sys/types.h>
 #include "readline.h"
-#define BUF_SiZE 256
 
 static int read_cnt;
 static char *read_ptr;
-static char read_buf[BUF_SiZE];
+static char read_buf[BUF_SIZE];
 static ssize_t my_read(int fd, char *ptr) {
     while (read_cnt <= 0) {
         if ( (read_cnt = read(fd, read_buf, sizeof(read_buf))) < 0 ) {
