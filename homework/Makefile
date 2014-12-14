@@ -3,17 +3,17 @@ CFLAGS = -Wall
 
 all: sig timeout set
 
-sig: hw02fileServerSIG.cpp ../lib/readline.cpp ../lib/readline.h
-	$(CC) $(CFLAGS) -o fileServerSIG hw02fileServerSIG.cpp ../lib/readline.cpp
-	$(CC) $(CFLAGS) -o fileClientSIG hw02fileClient.cpp ../lib/readline.cpp
+sig: hw02fileReceiverSIG.cpp ../lib/readline.cpp ../lib/readline.h
+	$(CC) $(CFLAGS) -o fileReceiverSIG hw02fileReceiverSIG.cpp ../lib/readline.cpp
+	$(CC) $(CFLAGS) -o fileSenderSIG hw02fileSender.cpp ../lib/readline.cpp
 
-timeout: hw02fileServerTimeout.cpp hw02fileClient.cpp ../lib/readline.cpp ../lib/readline.h
-	$(CC) $(CFLAGS) -o fileServerTimeout hw02fileServerTimeout.cpp ../lib/readline.cpp
-	$(CC) $(CFLAGS) -o fileClientTimeout hw02fileClient.cpp ../lib/readline.cpp
+timeout: hw02fileReceiverTimeout.cpp hw02fileSender.cpp ../lib/readline.cpp ../lib/readline.h
+	$(CC) $(CFLAGS) -o fileReceiverTimeout hw02fileReceiverTimeout.cpp ../lib/readline.cpp
+	$(CC) $(CFLAGS) -o fileSenderTimeout hw02fileSender.cpp ../lib/readline.cpp
 
-set: hw02fileServerSet.cpp hw02fileClient.cpp ../lib/readline.cpp ../lib/readline.h
-	$(CC) $(CFLAGS) -o fileServerSet hw02fileServerSet.cpp ../lib/readline.cpp
-	$(CC) $(CFLAGS) -o fileClientSet hw02fileClient.cpp ../lib/readline.cpp
+set: hw02fileReceiverSet.cpp hw02fileSender.cpp ../lib/readline.cpp ../lib/readline.h
+	$(CC) $(CFLAGS) -o fileReceiverSet hw02fileReceiverSet.cpp ../lib/readline.cpp
+	$(CC) $(CFLAGS) -o fileSenderSet hw02fileSender.cpp ../lib/readline.cpp
 
 chatServer: hw01chatRoomServer.cpp ../lib/readline.cpp ../lib/readline.h
 	$(CC) $(CFLAGS) -o chatServer hw01chatRoomServer.cpp ../lib/readline.cpp
