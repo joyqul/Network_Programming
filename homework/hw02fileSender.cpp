@@ -14,6 +14,7 @@
 #include <sys/wait.h>
 #include "../lib/readline.h"
 
+#define INDEX_SIZE 32
 #define PORT 44444
 #define SRV_IP "127.0.0.1"
 #define FILENAME "transfile"
@@ -66,27 +67,41 @@ int main(int argc, char* argv[]) {
     if (input.fail()) {
         bail("file opening failed");
     }
+#ifdef DEBUG
+    ofstream test("testfile", ios::binary);
+#endif
 
+    int index = 0;
     /*send redundant*/
-    char buf[BUF_SIZE];
+    char buf[BUF_SIZE], readbuf[BUF_SIZE-INDEX_SIZE];
     long filesize = get_file_len(&input);
-    int redundant = filesize%BUF_SIZE;
-    sprintf(buf, "%d", redundant);
+    int redundant = filesize%(BUF_SIZE-INDEX_SIZE);
+    cout << "re: " << redundant << endl;
+    sprintf(buf, "%032d%d\0", index++, redundant);
     if (sendto(connect_socket, buf, BUF_SIZE, 0, (struct sockaddr *)&connect_socket_info, slen) == -1) {
         bail("sendto()");
     }
 
     /* send file size */
-    filesize = filesize/BUF_SIZE + 1;
-    sprintf(buf, "%ld", filesize);
+    filesize = filesize/(BUF_SIZE-INDEX_SIZE) + 1;
+    sprintf(buf, "%032d%ld\0", index++, filesize+2);
     if (sendto(connect_socket, buf, BUF_SIZE, 0, (struct sockaddr *)&connect_socket_info, slen) == -1) {
         bail("sendto()");
     }
 
     /* send file */
     for (long i = 0; i < filesize; ++i) {
-        if (i == filesize-1) input.read(buf, redundant);
-        else input.read(buf, BUF_SIZE);
+        cout << "SEND" << endl;
+        if (i == filesize-1) input.read(readbuf, redundant);
+        else input.read(readbuf, BUF_SIZE-INDEX_SIZE);
+        sprintf(buf, "%032d", index++);
+        memcpy(buf+INDEX_SIZE, readbuf, BUF_SIZE-INDEX_SIZE);
+#ifdef DEBUG
+        char testbuf[BUF_SIZE-INDEX_SIZE];
+        memcpy(testbuf, buf+INDEX_SIZE, BUF_SIZE-INDEX_SIZE);
+        if (i != filesize - 1) test.write(testbuf, BUF_SIZE-INDEX_SIZE);
+        else test.write(testbuf, redundant);
+#endif
         int check = sendto(connect_socket, buf, BUF_SIZE, 0, (struct sockaddr *)&connect_socket_info, slen);
         if (check == -1) {
             bail("sendto()");
@@ -94,6 +109,9 @@ int main(int argc, char* argv[]) {
     }
 
     input.close();
+#ifdef DEBUG
+    test.close();
+#endif
     close(connect_socket);
     return 0;
 }

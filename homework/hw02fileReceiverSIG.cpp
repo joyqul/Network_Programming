@@ -1,5 +1,7 @@
 #include <iostream>
 #include <fstream>
+#include <queue>
+#include <vector>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -14,13 +16,47 @@
 #include <sys/wait.h>
 #include "../lib/readline.h"
 
-#define FILENAME "transfile"
+#define FILENAME "receivefile"
+#define MAX 100000
+#define INDEX_SIZE 32
 
 using namespace std;
 
 void bail(string s) {
     perror(s.c_str());
     exit(1);
+}
+
+struct SEGS {
+    int id;
+    char buf[BUF_SIZE-INDEX_SIZE];
+};
+
+class cmp {
+public:
+    bool operator() (const SEGS& a, const SEGS& b) const {
+        return a.id > b.id;
+    }
+};
+
+priority_queue<SEGS, vector<SEGS>, cmp> segments;
+
+void write_file(int redundent) {
+    /* open file */
+    ofstream output;
+    output.open(FILENAME, ios::binary);
+    
+    while (segments.size()-1) {
+        SEGS now = segments.top();
+        segments.pop();
+        cout << "id: " << now.id << endl;
+        output.write(now.buf, (BUF_SIZE-INDEX_SIZE)*sizeof(char));
+    }
+
+    SEGS now = segments.top();
+    segments.pop();
+    output.write(now.buf, redundent*sizeof(char));
+    output.close();
 }
 
 int main(int argc, char* argv[]) {
@@ -56,43 +92,42 @@ int main(int argc, char* argv[]) {
 
     struct sockaddr_in connect_socket_info; // in netinet/in.h
     socklen_t slen = sizeof(connect_socket_info);
-    char buf[BUF_SIZE];
+    char buf[BUF_SIZE-INDEX_SIZE+1], indexbuf[INDEX_SIZE+1], readbuf[BUF_SIZE];
 
-    /* get redundent */
-    int test = recvfrom(listen_socket, buf, BUF_SIZE, 0, (struct sockaddr *)&connect_socket_info, &slen);
-    if (test < 0) {
-        bail("recvfrom()");
-    }
-    int redundent = atoi(buf);
-    
-    /* get packet_num */
-    test = recvfrom(listen_socket, buf, BUF_SIZE, 0, (struct sockaddr *)&connect_socket_info, &slen);
-    if (test < 0) {
-        bail("recvfrom()");
-    }
-    long packet_num = atol(buf);
-
-    /* open file */
-    ofstream output;
-    output.open("receivefile", ios::binary);
-    
+    int redundent = 0;
+    long packet_num = MAX;
     for (int i = 0; i < packet_num; ++i) {
-        cout << i << endl;
-        test = recvfrom(listen_socket, buf, BUF_SIZE, 0, (struct sockaddr *)&connect_socket_info, &slen);
+        int test = recvfrom(listen_socket, readbuf, BUF_SIZE, 0, (struct sockaddr *)&connect_socket_info, &slen);
         if (test < 0) {
             bail("recvfrom()");
         }
-        else if (i == packet_num-1) {
-            cout << "LAST" << endl;
-            cout << redundent << endl;
-            output.write(buf, redundent*sizeof(char));
+        /* get packet id */
+        memcpy(indexbuf, readbuf, INDEX_SIZE);
+        indexbuf[INDEX_SIZE] = '\0';
+        int index = atoi(indexbuf);
+        cout << "index: " << index << endl;
+
+        /* get data */
+        memcpy(buf, readbuf+INDEX_SIZE, BUF_SIZE-INDEX_SIZE);
+        /* get redundent */
+        if (index == 0) { 
+            redundent = atoi(buf);
+        }
+        /* get packet_num */
+        else if (index == 1) {
+            packet_num = atol(buf);
+            cout << "pa: " << packet_num << endl;
         }
         else {
-            output.write(buf, BUF_SIZE*sizeof(char));
+            SEGS tmp;
+            tmp.id = index;
+            memcpy(tmp.buf, buf, BUF_SIZE-INDEX_SIZE);
+            segments.push(tmp);
         }
     }
 
-    output.close();
+    cout << "re: " << redundent << endl;
+    write_file(redundent);
     close(listen_socket);
     return 0;
 }
