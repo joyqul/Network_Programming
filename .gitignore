@@ -8,5 +8,11 @@ echo/echoClient
 select/echoServer
 homework/chatServer
 homework/chatClient
+homework/fileServerTimeout
+homework/fileClientTimeout
+homework/fileServerSIG
+homework/fileClientSIG
+homework/fileServerSet
+homework/fileClientSet
 *pptx
 *txt
