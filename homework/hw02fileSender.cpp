@@ -1,5 +1,6 @@
 #include <iostream>
 #include <fstream>
+#include <vector>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -32,6 +33,12 @@ inline long get_file_len(ifstream* input) {
     input->seekg(0);
     return len;
 }
+
+struct PACKET {
+    char buf[BUF_SIZE];
+};
+
+vector<PACKET> packet_queue;
 
 int main(int argc, char* argv[]) {
 
@@ -96,6 +103,11 @@ int main(int argc, char* argv[]) {
         else input.read(readbuf, BUF_SIZE-INDEX_SIZE);
         sprintf(buf, "%032d", index++);
         memcpy(buf+INDEX_SIZE, readbuf, BUF_SIZE-INDEX_SIZE);
+
+        /* store the message */
+        PACKET store;
+        memcpy(store.buf, buf, BUF_SIZE);
+        packet_queue.push_back(store);
 #ifdef DEBUG
         char testbuf[BUF_SIZE-INDEX_SIZE];
         memcpy(testbuf, buf+INDEX_SIZE, BUF_SIZE-INDEX_SIZE);

@@ -49,7 +49,6 @@ void write_file(int redundent) {
     while (segments.size()-1) {
         SEGS now = segments.top();
         segments.pop();
-        cout << "id: " << now.id << endl;
         output.write(now.buf, (BUF_SIZE-INDEX_SIZE)*sizeof(char));
     }
 
@@ -105,7 +104,7 @@ int main(int argc, char* argv[]) {
         memcpy(indexbuf, readbuf, INDEX_SIZE);
         indexbuf[INDEX_SIZE] = '\0';
         int index = atoi(indexbuf);
-        cout << "index: " << index << endl;
+        //cout << "index: " << index << endl;
 
         /* get data */
         memcpy(buf, readbuf+INDEX_SIZE, BUF_SIZE-INDEX_SIZE);
@@ -116,7 +115,7 @@ int main(int argc, char* argv[]) {
         /* get packet_num */
         else if (index == 1) {
             packet_num = atol(buf);
-            cout << "pa: " << packet_num << endl;
+            //cout << "pa: " << packet_num << endl;
         }
         else {
             SEGS tmp;
