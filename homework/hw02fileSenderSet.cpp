@@ -42,10 +42,6 @@ struct PACKET {
 
 vector<PACKET> packet_vec;
 
-void sig_alm(int signo) {
-    return;
-}
-
 int main(int argc, char* argv[]) {
 
     /* give the port in command line's first argc */
@@ -148,12 +144,11 @@ int main(int argc, char* argv[]) {
         else {
             bail("recvfrom");
         }
-        alarm(0);
     }
 
+    tv.tv_sec = 5;
     while (lastest < filesize-1) {
         int test;
-        alarm(5);
         test = recvfrom(connect_socket, ackbuf, INDEX_SIZE, 0, (struct sockaddr *)&connect_socket_info, &slen);
         if (test < 0 && errno == EINTR) {
             cout << "finish sending" << endl;
@@ -162,7 +157,6 @@ int main(int argc, char* argv[]) {
         if (test < 0) {
             bail("recvfrom");
         }
-        alarm(0);
         int ack_id = atoi(ackbuf);
         if (ack_id > lastest) lastest = ack_id;
         if (lastest == filesize-1) break;
@@ -177,6 +171,3 @@ int main(int argc, char* argv[]) {
     close(connect_socket);
     return 0;
 }
-// this is for setsockopt T_T
-//    /* set timeout */
-
