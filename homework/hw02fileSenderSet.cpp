@@ -105,9 +105,11 @@ int main(int argc, char* argv[]) {
         bail("sendto()");
     }
 
-    /* set signal */
-    signal(SIGALRM, sig_alm);
-    siginterrupt(SIGALRM, 1);
+    /* set timeout */
+    struct timeval tv;
+    tv.tv_sec = 1;
+    tv.tv_usec = 0;
+    setsockopt(connect_socket, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
 
     int lastest = -1;
     /* send file */
@@ -130,13 +132,12 @@ int main(int argc, char* argv[]) {
         if (i % FREQUENCY) continue;
 
         /* receive */
-        alarm(1);
         int test;
         while ((test = recvfrom(connect_socket, ackbuf, INDEX_SIZE, 0, (struct sockaddr *)&connect_socket_info, &slen)) >= 0) {
             int ack_id = atoi(ackbuf);
             if (ack_id > lastest) lastest = ack_id;
         }
-        if (errno == EINTR) { // socket timeout
+        if (errno == EWOULDBLOCK) { // socket timeout
             if (lastest < i - WINDOW_SIZE) {
                 check = sendto(connect_socket, packet_vec[lastest+1].buf, BUF_SIZE, 0, (struct sockaddr *)&connect_socket_info, slen);
                 if (check == -1) {
@@ -176,3 +177,6 @@ int main(int argc, char* argv[]) {
     close(connect_socket);
     return 0;
 }
+// this is for setsockopt T_T
+//    /* set timeout */
+
