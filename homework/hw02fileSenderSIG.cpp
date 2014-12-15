@@ -19,6 +19,8 @@
 #define PORT 44444
 #define SRV_IP "127.0.0.1"
 #define FILENAME "transfile"
+#define FREQUENCY 444
+#define WINDOW_SIZE 16
 
 using namespace std;
 
@@ -38,7 +40,11 @@ struct PACKET {
     char buf[BUF_SIZE];
 };
 
-vector<PACKET> packet_queue;
+vector<PACKET> packet_vec;
+
+void sig_alm(int signo) {
+    return;
+}
 
 int main(int argc, char* argv[]) {
 
@@ -74,17 +80,17 @@ int main(int argc, char* argv[]) {
     if (input.fail()) {
         bail("file opening failed");
     }
-#ifdef DEBUG
-    ofstream test("testfile", ios::binary);
-#endif
 
     int index = 0;
     /*send redundant*/
-    char buf[BUF_SIZE], readbuf[BUF_SIZE-INDEX_SIZE];
+    char buf[BUF_SIZE], readbuf[BUF_SIZE-INDEX_SIZE], ackbuf[INDEX_SIZE];
     long filesize = get_file_len(&input);
     int redundant = filesize%(BUF_SIZE-INDEX_SIZE);
-    cout << "re: " << redundant << endl;
     sprintf(buf, "%032d%d\0", index++, redundant);
+
+    PACKET store;
+    memcpy(store.buf, buf, BUF_SIZE);
+    packet_vec.push_back(store);
     if (sendto(connect_socket, buf, BUF_SIZE, 0, (struct sockaddr *)&connect_socket_info, slen) == -1) {
         bail("sendto()");
     }
@@ -92,38 +98,86 @@ int main(int argc, char* argv[]) {
     /* send file size */
     filesize = filesize/(BUF_SIZE-INDEX_SIZE) + 1;
     sprintf(buf, "%032d%ld\0", index++, filesize+2);
+
+    memcpy(store.buf, buf, BUF_SIZE);
+    packet_vec.push_back(store);
     if (sendto(connect_socket, buf, BUF_SIZE, 0, (struct sockaddr *)&connect_socket_info, slen) == -1) {
         bail("sendto()");
     }
 
+    /* set signal */
+    signal(SIGALRM, sig_alm);
+    siginterrupt(SIGALRM, 1);
+
+    int lastest = -1;
     /* send file */
     for (long i = 0; i < filesize; ++i) {
-        cout << "SEND" << endl;
+
+        /* read file */
         if (i == filesize-1) input.read(readbuf, redundant);
         else input.read(readbuf, BUF_SIZE-INDEX_SIZE);
         sprintf(buf, "%032d", index++);
         memcpy(buf+INDEX_SIZE, readbuf, BUF_SIZE-INDEX_SIZE);
 
         /* store the message */
-        PACKET store;
         memcpy(store.buf, buf, BUF_SIZE);
-        packet_queue.push_back(store);
-#ifdef DEBUG
-        char testbuf[BUF_SIZE-INDEX_SIZE];
-        memcpy(testbuf, buf+INDEX_SIZE, BUF_SIZE-INDEX_SIZE);
-        if (i != filesize - 1) test.write(testbuf, BUF_SIZE-INDEX_SIZE);
-        else test.write(testbuf, redundant);
-#endif
+        packet_vec.push_back(store);
         int check = sendto(connect_socket, buf, BUF_SIZE, 0, (struct sockaddr *)&connect_socket_info, slen);
         if (check == -1) {
             bail("sendto()");
         }
+
+        if (i % FREQUENCY) continue;
+
+        /* receive */
+        alarm(1);
+        int test;
+        while ((test = recvfrom(connect_socket, ackbuf, INDEX_SIZE, 0, (struct sockaddr *)&connect_socket_info, &slen)) >= 0) {
+            int ack_id = atoi(ackbuf);
+            if (ack_id > lastest) lastest = ack_id;
+        }
+        if (errno == EINTR) { // socket timeout
+            if (lastest < i - WINDOW_SIZE) {
+                check = sendto(connect_socket, packet_vec[lastest+1].buf, BUF_SIZE, 0, (struct sockaddr *)&connect_socket_info, slen);
+                if (check == -1) {
+                    bail("sendto()");
+                }
+            }
+        }
+        else {
+            bail("recvfrom");
+        }
+        alarm(0);
+    }
+
+    while (lastest < filesize-1) {
+        int test;
+        alarm(5);
+        test = recvfrom(connect_socket, ackbuf, INDEX_SIZE, 0, (struct sockaddr *)&connect_socket_info, &slen);
+        if (test < 0 && errno == EINTR) {
+            cout << "finish sending" << endl;
+            break;
+        }
+        if (test < 0) {
+            bail("recvfrom");
+        }
+        alarm(0);
+        int ack_id = atoi(ackbuf);
+        if (ack_id > lastest) lastest = ack_id;
+        if (lastest == filesize-1) break;
+
+        int check = sendto(connect_socket, packet_vec[lastest+1].buf, BUF_SIZE, 0, (struct sockaddr *)&connect_socket_info, slen);
+        if (check < 0) {
+            bail("sendto");
+        }
     }
 
     input.close();
-#ifdef DEBUG
-    test.close();
-#endif
     close(connect_socket);
     return 0;
 }
+/*
+    time_to_break = false;
+
+    alarm(1);
+ */

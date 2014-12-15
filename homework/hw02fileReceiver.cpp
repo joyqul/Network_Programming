@@ -33,19 +33,27 @@ struct SEGS {
 };
 
 class cmp {
-public:
-    bool operator() (const SEGS& a, const SEGS& b) const {
-        return a.id > b.id;
-    }
+    public:
+        bool operator() (const SEGS& a, const SEGS& b) const {
+            return a.id > b.id;
+        }
 };
 
 priority_queue<SEGS, vector<SEGS>, cmp> segments;
+
+void send_ACK(int listen_socket, struct sockaddr* connect_socket_info, socklen_t slen, int ACK_packet) {
+    char buf[INDEX_SIZE];
+    sprintf(buf, "%d\0", ACK_packet);
+    if (sendto(listen_socket, buf, INDEX_SIZE, 0, connect_socket_info, slen) == -1) {
+        bail("sendto()");
+    }
+}
 
 void write_file(int redundent) {
     /* open file */
     ofstream output;
     output.open(FILENAME, ios::binary);
-    
+
     while (segments.size()-1) {
         SEGS now = segments.top();
         segments.pop();
@@ -56,6 +64,7 @@ void write_file(int redundent) {
     segments.pop();
     output.write(now.buf, redundent*sizeof(char));
     output.close();
+    cout << "receive all file" << endl;
 }
 
 int main(int argc, char* argv[]) {
@@ -82,7 +91,7 @@ int main(int argc, char* argv[]) {
     my_socket_info.sin_family = AF_INET;
     my_socket_info.sin_port = htons(atoi(my_port.c_str()));
     my_socket_info.sin_addr.s_addr = INADDR_ANY;
-    
+
     /* bind the my address */
     int check = bind(listen_socket, (struct sockaddr *)&my_socket_info, sizeof(my_socket_info));
     if (check < 0) {
@@ -93,18 +102,46 @@ int main(int argc, char* argv[]) {
     socklen_t slen = sizeof(connect_socket_info);
     char buf[BUF_SIZE-INDEX_SIZE+1], indexbuf[INDEX_SIZE+1], readbuf[BUF_SIZE];
 
+    /* for packet lost */
+    bool packet_get[MAX];
+    memset(packet_get, false, sizeof(packet_get));
+
     int redundent = 0;
     long packet_num = MAX;
+
     for (int i = 0; i < packet_num; ++i) {
+        while (i < packet_num && packet_get[i]){
+            ++i;
+        }
+        if (i >= packet_num) break;
+        if (i != 0) {
+            send_ACK(listen_socket, (struct sockaddr*)&connect_socket_info, slen, i-1);
+        }
+
+        /* receive data */
         int test = recvfrom(listen_socket, readbuf, BUF_SIZE, 0, (struct sockaddr *)&connect_socket_info, &slen);
         if (test < 0) {
             bail("recvfrom()");
         }
+
         /* get packet id */
         memcpy(indexbuf, readbuf, INDEX_SIZE);
         indexbuf[INDEX_SIZE] = '\0';
         int index = atoi(indexbuf);
-        //cout << "index: " << index << endl;
+
+        /* check if get before */
+        if (i != index && packet_get[index]) {
+            send_ACK(listen_socket, (struct sockaddr*)&connect_socket_info, slen, index);
+            --i;
+            continue;
+        }
+
+        packet_get[index] = true;
+
+        /* since didn't get packet i */
+        if (i != index) {
+            --i;
+        }
 
         /* get data */
         memcpy(buf, readbuf+INDEX_SIZE, BUF_SIZE-INDEX_SIZE);
@@ -115,7 +152,6 @@ int main(int argc, char* argv[]) {
         /* get packet_num */
         else if (index == 1) {
             packet_num = atol(buf);
-            //cout << "pa: " << packet_num << endl;
         }
         else {
             SEGS tmp;
@@ -125,7 +161,6 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    cout << "re: " << redundent << endl;
     write_file(redundent);
     close(listen_socket);
     return 0;
