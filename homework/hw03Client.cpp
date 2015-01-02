@@ -17,6 +17,22 @@ static void bail(string on_what) {
     cerr << strerror(errno) << ": " << on_what << "\n";
 }
 
+static void client_sleep(string message) {
+    printf("Client starts to sleep\n");
+    int sec = 0;
+    for (int i = 7; i < message.size(); ++i) {
+        char ch = message[i];
+        if ( ch > '9' || ch < '0') break;
+        sec = sec*10 + ch - '0';
+    }
+
+    for (int i = 1; i <= sec; ++i) {
+        sleep(1);
+        printf("Sleep %d\n", i);
+    }
+    printf("Client wakes up\n");
+}
+
 static void client(FILE* fp, int my_socket) {
     fd_set read_set;
     FD_ZERO(&read_set);
@@ -55,6 +71,15 @@ static void client(FILE* fp, int my_socket) {
             string message;
             getline(cin, message);
             if (strcmp(message.c_str(), "/exit") == 0) return;
+
+            char sleep_cmp[6], put_cmp[4];
+            strncpy(sleep_cmp, message.c_str(), 6);
+            strncpy(put_cmp, message.c_str(), 4);
+            if (strcmp(sleep_cmp, "/sleep") == 0) {
+                client_sleep(message);
+            }
+            else if (strcmp(put_cmp, "/put") == 0) {
+            }
         }
     }
 }
