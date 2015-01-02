@@ -1,4 +1,5 @@
 #include <iostream>
+#include <fstream>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -34,24 +35,51 @@ static inline void load_bar(int now, int total, int width) {
     cout << "]\r" << flush;
 }
 
-static void send_file(string message) {
+static inline long get_file_len(ifstream* input) {
+    input->seekg(0, input->end);
+    long len = input->tellg();
+    input->seekg(0);
+    return len;
+}
+
+static void send_file(string message, int my_socket) {
     string filename;
     for (int i = 5; i < message.size(); ++i) {
         if (message[i] == '\n' || message[i] == '\r') break;
         filename += message[i];
     }
 
-    cerr << "file: " << filename << endl;
-    for (int i = 0; i <= 5; ++i) {
-        sleep(1);
-        load_bar(i, 5, 10);
+    ifstream input(filename.c_str(), ios::binary);
+    if (input.fail()) {
+        cerr << "No such file: " << filename << endl;
+        return;
     }
+
+    /* file size */
+    long filesize = get_file_len(&input);
+    int redundent = filesize%(BUF_SIZE-0);
+    long packet_num = filesize/BUF_SIZE + 1;
+    char buf[BUF_SIZE];
+    bzero(buf, BUF_SIZE);
+    sprintf(buf, "SENDFILE%s\r%d\r%ld\n", filename.c_str(), redundent, packet_num); /* redundent */
+    /* trans file */
+    write(my_socket, buf, BUF_SIZE);
+
+    filesize = filesize/BUF_SIZE;
+    for (int i = 0; i < filesize; ++i) {
+        input.read(buf, BUF_SIZE);
+        write(my_socket, buf, BUF_SIZE);
+        if (i % 10 == 0) {
+            load_bar(i, filesize+1, 15);
+        }
+    }
+    bzero(buf, BUF_SIZE);
+    input.read(buf, redundent);
+    input.close();
+    write(my_socket, buf, redundent);
+    load_bar(filesize+1, filesize+1, 15);
+
     printf("\nUpload %s complete!\n", filename.c_str());
-    //ifstream input(filename, ios::binary);
-    //if (input.fail()) {
-    //    cerr << "No such file: " << filename << endl;
-    //    return;
-    //}
 }
 
 static void client_sleep(string message) {
@@ -118,7 +146,7 @@ static void client(FILE* fp, int my_socket) {
                 client_sleep(message);
             }
             else if (strcmp(put_cmp, "/put") == 0) {
-                send_file(message);
+                send_file(message, my_socket);
             }
         }
     }
@@ -127,14 +155,14 @@ static void client(FILE* fp, int my_socket) {
 int main (int argc, char* argv[]) {
 
     /* give server address in command line */
-    string server_addr, server_port, clinet_name;
+    string server_addr, server_port, client_name;
     if (argc != 4) {
         cout << "Usage: ./client.exe <SERVER IP> <SERVER PORT> <username>" << endl;
     }
     server_addr = argv[1];
     server_port = argv[2];
-    clinet_name = "name ";
-    clinet_name = clinet_name + argv[3] + "\n\n";
+    client_name = "name ";
+    client_name = client_name + argv[3] + "\n";
     
     /* create a server socket address */
     struct sockaddr_in socket_info; // in netinet/in.h
@@ -162,7 +190,7 @@ int main (int argc, char* argv[]) {
         bail("connect(2)");
         return 1;
     }
-    write(my_socket, clinet_name.c_str(), clinet_name.size());
+    write(my_socket, client_name.c_str(), client_name.size());
 
     /* read the info */
     client(stdin, my_socket);

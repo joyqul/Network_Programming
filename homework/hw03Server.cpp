@@ -1,4 +1,6 @@
 #include <iostream>
+#include <vector>
+#include <fstream>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -20,9 +22,19 @@
 
 using namespace std;
 
+struct STORE {
+    string filename;
+    int owner_client;
+};
+
+vector<STORE> storehouse;
+
 struct CLIENT {
     int id;
     string name, ip, port;
+    int filesize, redundent, now;
+    ofstream upload;
+    bool uploading, downloading;
 } client[MAX_CLIENT];
 
 static void bail(string on_what) {
@@ -61,7 +73,61 @@ static void change_name(int me, string target, int max_fd) {
     string welcome_message = "Welcome to the dropbox-like server! : " + new_name + "\n";
     write(client[me].id, welcome_message.c_str(), welcome_message.size());
     client[me].name = new_name;
+    client[me].uploading = false;
+    client[me].downloading = false;
+}
 
+static void init_upload(int me, string message) {
+    STORE tmp;
+    int i;
+    for (i = 8; i < message.size(); ++i) {
+        if (message[i] == '\0') break;
+        if (message[i] == '\r') break;
+        if (message[i] == '\n') break;
+        tmp.filename += message[i];
+    }
+    cout << tmp.filename << endl;
+
+    ++i;
+    int redundent = 0;
+    for (; i < message.size(); ++i) {
+        if (message[i] == '\0') break;
+        if (message[i] == '\r') break;
+        if (message[i] == '\n') break;
+        redundent = redundent*10 + message[i] - '0';
+    }
+
+    ++i;
+    int filesize = 0;
+    for (; i < message.size(); ++i) {
+        if (message[i] == '\0') break;
+        if (message[i] == '\r') break;
+        if (message[i] == '\n') break;
+        filesize = filesize*10 + message[i] - '0';
+    }
+
+    tmp.owner_client = me;
+    storehouse.push_back(tmp);
+    client[me].now = 0;
+    client[me].uploading = true;
+    client[me].redundent = redundent;
+    client[me].filesize = filesize;
+    client[me].upload.open(tmp.filename.c_str(), ios::binary);
+
+    cerr << redundent << " " << filesize << endl;
+}
+
+static void upload(int me, char line[]) {
+    cout << "UPLOAD\n";
+    if (client[me].now == client[me].filesize - 1) {
+        client[me].upload.write(line, client[me].redundent*sizeof(char));
+        client[me].upload.close();
+        client[me].uploading = false;
+        cout << "finish" << endl;
+        return;
+    }
+    ++client[me].now;
+    client[me].upload.write(line, BUF_SIZE*sizeof(char));
 }
 
 int set_nonblocking(int fd) {
@@ -220,11 +286,18 @@ int main (int argc, char* argv[]) {
                     write(myclient, message, BUF_SIZE);
                 }
                 else {
-                    char name_cmp[BUF_SIZE];
+                    char name_cmp[BUF_SIZE], send_file[BUF_SIZE];
                     strncpy(name_cmp, line, 4); name_cmp[4] = '\0';
+                    strncpy(send_file, line, 8); name_cmp[8] = '\0';
                     if (strcmp(name_cmp, "name") == 0) {
                         string target = line;
                         change_name(i, target, max_fd);
+                    }
+                    else if (strcmp(send_file, "SENDFILE") == 0) {
+                        init_upload(i, line);
+                    }
+                    else if (client[i].uploading) {
+                        upload(i, line);
                     }
                 }
             }
