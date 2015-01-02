@@ -17,6 +17,43 @@ static void bail(string on_what) {
     cerr << strerror(errno) << ": " << on_what << "\n";
 }
 
+static inline void load_bar(int now, int total, int width) {
+    printf("Progress : [");
+    
+    float ratio = width/(float)total;
+    int count = ratio*now;
+
+    for (int i = 0; i < count; ++i) {
+        printf("#");
+    }
+
+    for (int i = count; i < width; ++i) {
+        printf(" ");
+    }
+
+    cout << "]\r" << flush;
+}
+
+static void send_file(string message) {
+    string filename;
+    for (int i = 5; i < message.size(); ++i) {
+        if (message[i] == '\n' || message[i] == '\r') break;
+        filename += message[i];
+    }
+
+    cerr << "file: " << filename << endl;
+    for (int i = 0; i <= 5; ++i) {
+        sleep(1);
+        load_bar(i, 5, 10);
+    }
+    printf("\nUpload %s complete!\n", filename.c_str());
+    //ifstream input(filename, ios::binary);
+    //if (input.fail()) {
+    //    cerr << "No such file: " << filename << endl;
+    //    return;
+    //}
+}
+
 static void client_sleep(string message) {
     printf("Client starts to sleep\n");
     int sec = 0;
@@ -72,13 +109,16 @@ static void client(FILE* fp, int my_socket) {
             getline(cin, message);
             if (strcmp(message.c_str(), "/exit") == 0) return;
 
-            char sleep_cmp[6], put_cmp[4];
-            strncpy(sleep_cmp, message.c_str(), 6);
-            strncpy(put_cmp, message.c_str(), 4);
+            char sleep_cmp[7], put_cmp[5];
+            strncpy(put_cmp, message.c_str(), 5);
+            put_cmp[4] = '\0';
+            strncpy(sleep_cmp, message.c_str(), 7);
+            sleep_cmp[6] = '\0';
             if (strcmp(sleep_cmp, "/sleep") == 0) {
                 client_sleep(message);
             }
             else if (strcmp(put_cmp, "/put") == 0) {
+                send_file(message);
             }
         }
     }
