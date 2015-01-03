@@ -127,7 +127,7 @@ static void upload(int me, char line[]) {
         return;
     }
     ++client[me].now;
-    client[me].upload.write(line, BUF_SIZE*sizeof(char));
+    client[me].upload.write(line, (BUF_SIZE)*sizeof(char));
 }
 
 int set_nonblocking(int fd) {
@@ -271,19 +271,13 @@ int main (int argc, char* argv[]) {
             if ( myclient < 0) continue;
             if (FD_ISSET(myclient, &working_set)) {
                 /* connection closed by client */
-                if ( (check = readline(myclient, line, BUF_SIZE)) == 0 ) {
+                if ( (check = read(myclient, line, BUF_SIZE)) == 0 ) {
                     close(myclient);
                     FD_CLR(myclient, &read_set);
                     client[i].id = -1;
                     string message = client[i].name + " is offline.\n";
                     broadcast(message, max_fd);
                     break;
-                }
-                else if (check == BUF_SIZE) {
-                    while ( (check = readline(myclient, line, BUF_SIZE)) == BUF_SIZE) ;
-                    char message[BUF_SIZE];
-                    sprintf(message, "[Server] ERROR: String too long, maximun is %d\n", BUF_SIZE);
-                    write(myclient, message, BUF_SIZE);
                 }
                 else {
                     char name_cmp[BUF_SIZE], send_file[BUF_SIZE];

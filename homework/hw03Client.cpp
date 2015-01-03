@@ -21,7 +21,7 @@ static void bail(string on_what) {
 static inline void load_bar(int now, int total, int width) {
     printf("Progress : [");
     
-    float ratio = width/(float)total;
+    double ratio = width/(double)total;
     int count = ratio*now;
 
     for (int i = 0; i < count; ++i) {
@@ -42,7 +42,11 @@ static inline long get_file_len(ifstream* input) {
     return len;
 }
 
-static void send_file(string message, int my_socket) {
+static void download(string message, int my_socket) {
+    
+}
+
+static void upload(string message, int my_socket) {
     string filename;
     for (int i = 5; i < message.size(); ++i) {
         if (message[i] == '\n' || message[i] == '\r') break;
@@ -58,7 +62,7 @@ static void send_file(string message, int my_socket) {
     /* file size */
     long filesize = get_file_len(&input);
     int redundent = filesize%(BUF_SIZE-0);
-    long packet_num = filesize/BUF_SIZE + 1;
+    long packet_num = filesize/(BUF_SIZE-0) + 1;
     char buf[BUF_SIZE];
     bzero(buf, BUF_SIZE);
     sprintf(buf, "SENDFILE%s\r%d\r%ld\n", filename.c_str(), redundent, packet_num); /* redundent */
@@ -67,9 +71,10 @@ static void send_file(string message, int my_socket) {
 
     filesize = filesize/BUF_SIZE;
     for (int i = 0; i < filesize; ++i) {
+        bzero(buf, BUF_SIZE);
         input.read(buf, BUF_SIZE);
         write(my_socket, buf, BUF_SIZE);
-        if (i % 10 == 0) {
+        if (i % 2 == 0) {
             load_bar(i, filesize+1, 15);
         }
     }
@@ -146,7 +151,7 @@ static void client(FILE* fp, int my_socket) {
                 client_sleep(message);
             }
             else if (strcmp(put_cmp, "/put") == 0) {
-                send_file(message, my_socket);
+                upload(message, my_socket);
             }
         }
     }
