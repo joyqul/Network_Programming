@@ -44,9 +44,11 @@ static inline void load_bar(int now, int total, int width) {
     cout << "]\r" << flush;
 }
 
-static void download(string message, int my_socket) {
+static void download(char message[], int my_socket) {
     if (!downloader.downloading) {
-        get_file_description(message, downloader.filename, downloader.redundent, downloader.filesize);
+        downloader.filename = "";
+        string tmp(message);
+        get_file_description(tmp, downloader.filename, downloader.redundent, downloader.filesize);
         cout << "Downloading file : " << downloader.filename << endl;
         downloader.downloading = true;
         downloader.now = 0;
@@ -54,7 +56,7 @@ static void download(string message, int my_socket) {
         return;
     }
     if (downloader.now == downloader.filesize - 1) {
-        downloader.fp.write(message.c_str(), downloader.redundent*sizeof(char));
+        downloader.fp.write(message, downloader.redundent*sizeof(char));
         downloader.fp.close();
         downloader.downloading = false;
         load_bar(downloader.now+1, downloader.filesize, 15);
@@ -62,7 +64,7 @@ static void download(string message, int my_socket) {
         return;
     }
     ++downloader.now;
-    downloader.fp.write(message.c_str(), (BUF_SIZE)*sizeof(char));
+    downloader.fp.write(message, (BUF_SIZE)*sizeof(char));
     load_bar(downloader.now, downloader.filesize, 15);
 }
 
@@ -150,8 +152,7 @@ static void client(FILE* fp, int my_socket) {
                 return;
             }
             else {
-                //cout << "check: " << check << endl;
-                char send_file[BUF_SIZE];
+                char send_file[9];
                 strncpy(send_file, line, 8); send_file[8] = '\0';
                 if (strcmp(send_file, "SENDFILE") == 0 || downloader.downloading) {
                     download(line, my_socket);

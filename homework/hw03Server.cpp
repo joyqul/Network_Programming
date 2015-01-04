@@ -61,6 +61,7 @@ static void bail(string on_what) {
 static int check_server_capacity(int myclient) {
     for (int client_entry = 0; client_entry < MAX_CLIENT; ++client_entry) {
         if (client[client_entry].id < 0) {
+            //cout << "MAP: " << client_entry << " " << myclient << endl;
             client[client_entry].id = myclient;
             client[client_entry].initial = false;
             client[client_entry].name = "anonymous";
@@ -99,12 +100,14 @@ static void change_name(int me, string target, int max_fd) {
 static void download(int me) {
     if (client[me].download_queue.size() == 0 && !client[me].downloading) return;
     if (!client[me].downloading) {
+        //cout << "CHECK: " << me << " " << client[me].id << " " << client[me].download_queue.size() << endl;
         int target = client[me].download_queue.front();
         client[me].download_queue.pop();
         client[me].download.fp.open(storehouse[target].filename.c_str(), ios::in | ios::binary);
         if (client[me].download.fp.fail()) {
             cout << "Your file is someting wrong\n";
         }
+        //cout << storehouse[target].filename.c_str() << endl;
         generate_file_description(&client[me].download.fp, client[me].download.buf, storehouse[target].filename, 
                 client[me].download.redundent, client[me].download.filesize);
         client[me].download.target = target;
@@ -117,7 +120,7 @@ static void download(int me) {
             bail("Write failed");
         }
         client[me].download.buf_used += nwrite;
-        cout << "nwrite: " << client[me].download.buf_used << endl;
+        //cout << "nwrite: " << client[me].download.buf_used << endl;
         return;
     }
 
@@ -135,7 +138,7 @@ static void download(int me) {
         }
         bzero(client[me].download.buf, BUF_SIZE);
         client[me].download.fp.read(client[me].download.buf, client[me].download.buf_len);
-        cout << "only read " << client[me].download.fp.gcount() << " world" << endl;
+        //cout << "only read " << client[me].download.fp.gcount() << " world" << endl;
         client[me].download.buf_used = 0;
         ++client[me].download.now;
     }
@@ -146,7 +149,6 @@ static void download(int me) {
         bail("Write failed");
     }
     client[me].download.buf_used += nwrite;
-    cout << "nwrite: " << client[me].download.buf_used << endl;
 }
 
 static void give_file_to_others(int file_id, int me) {
@@ -168,13 +170,12 @@ static void init_upload(int me, string message) {
 }
 
 static void upload(int me, char line[]) {
-    cout << "UPLOAD\n";
+    //cout << "UPLOAD\n";
     if (client[me].upload.now == client[me].upload.filesize - 1) {
         client[me].upload.fp.write(line, client[me].upload.redundent*sizeof(char));
         client[me].upload.fp.close();
         client[me].uploading = false;
         give_file_to_others(client[me].upload.file_id, me);
-        cout << "finish" << endl;
         return;
     }
     ++client[me].upload.now;
@@ -338,7 +339,7 @@ int main (int argc, char* argv[]) {
                     break;
                 }
                 else {
-                    cout << "check:" << check << endl;
+                    //cout << "check:" << check << endl;
                     char name_cmp[BUF_SIZE], send_file[BUF_SIZE];
                     strncpy(name_cmp, line, 4); name_cmp[4] = '\0';
                     strncpy(send_file, line, 8); send_file[8] = '\0';

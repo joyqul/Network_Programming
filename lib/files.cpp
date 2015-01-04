@@ -15,7 +15,7 @@ void generate_file_description(std::ifstream* fp, char* buf, std::string filenam
     redundent = filesize%(BUF_SIZE-0);
     packet_num = filesize/(BUF_SIZE-0) + 1;
     bzero(buf, BUF_SIZE);
-    sprintf(buf, "SENDFILE%s\r%d\r%ld\n", filename.c_str(), redundent, packet_num); /* redundent */
+    sprintf(buf, "SENDFILE%s\n%d\n%ld\n", filename.c_str(), redundent, packet_num); /* redundent */
 }
 
 void get_file_description(std::string& message, std::string& filename, int& redundent, long& filesize) {
@@ -44,5 +44,5 @@ void get_file_description(std::string& message, std::string& filename, int& redu
         if (message[i] == '\n') break;
         filesize = filesize*10 + message[i] - '0';
     }
-    std::cout << filename << " " << redundent << " " << filesize << std::endl;
+    //std::cout << filename << " " << redundent << " " << filesize << std::endl;
 }
