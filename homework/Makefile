@@ -3,11 +3,11 @@ CFLAGS = -Wall
 
 all: server client
 
-server: hw03Server.cpp ../lib/readline.cpp ../lib/readline.h
-	$(CC) $(CFLAGS) -o server.exe hw03Server.cpp ../lib/readline.cpp
+server: hw03Server.cpp ../lib/readline.cpp ../lib/readline.h ../lib/files.cpp ../lib/files.h
+	$(CC) $(CFLAGS) -o server.exe hw03Server.cpp ../lib/readline.cpp ../lib/files.cpp
 
-client: hw03Client.cpp ../lib/readline.cpp ../lib/readline.h
-	$(CC) $(CFLAGS) -o client.exe hw03Client.cpp ../lib/readline.cpp
+client: hw03Client.cpp ../lib/readline.cpp ../lib/readline.h ../lib/files.cpp ../lib/files.h
+	$(CC) $(CFLAGS) -o client.exe hw03Client.cpp ../lib/readline.cpp ../lib/files.cpp
 
 sig: hw02fileReceiver.cpp hw02fileSenderSIG.cpp ../lib/readline.cpp ../lib/readline.h
 	$(CC) $(CFLAGS) -o fileReceiverSIG hw02fileReceiver.cpp ../lib/readline.cpp

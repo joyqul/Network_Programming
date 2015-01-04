@@ -11,8 +11,16 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include "../lib/readline.h"
+#include "../lib/files.h"
 
 using namespace std;
+
+struct DOWNLOAD {
+    long filesize;
+    int redundent, now;
+    bool downloading;
+    ofstream fp;
+} downloader;
 
 static void bail(string on_what) {
     cerr << strerror(errno) << ": " << on_what << "\n";
@@ -35,15 +43,23 @@ static inline void load_bar(int now, int total, int width) {
     cout << "]\r" << flush;
 }
 
-static inline long get_file_len(ifstream* input) {
-    input->seekg(0, input->end);
-    long len = input->tellg();
-    input->seekg(0);
-    return len;
-}
-
 static void download(string message, int my_socket) {
-    
+    if (!downloader.downloading) {
+        string filename;
+        get_file_description(message, filename, downloader.redundent, downloader.filesize);
+        downloader.downloading = true;
+        downloader.now = 0;
+        downloader.fp.open(filename.c_str(), ios::out | ios::binary);
+        return;
+    }
+    if (downloader.now == downloader.filesize - 1) {
+        downloader.fp.write(message.c_str(), downloader.redundent*sizeof(char));
+        downloader.fp.close();
+        downloader.downloading = false;
+        return;
+    }
+    ++downloader.now;
+    downloader.fp.write(message.c_str(), (BUF_SIZE)*sizeof(char));
 }
 
 static void upload(string message, int my_socket) {
@@ -53,36 +69,32 @@ static void upload(string message, int my_socket) {
         filename += message[i];
     }
 
-    ifstream input(filename.c_str(), ios::binary);
+    ifstream input(filename.c_str(), ios::in | ios::binary);
     if (input.fail()) {
         cerr << "No such file: " << filename << endl;
         return;
     }
 
     /* file size */
-    long filesize = get_file_len(&input);
-    int redundent = filesize%(BUF_SIZE-0);
-    long packet_num = filesize/(BUF_SIZE-0) + 1;
     char buf[BUF_SIZE];
-    bzero(buf, BUF_SIZE);
-    sprintf(buf, "SENDFILE%s\r%d\r%ld\n", filename.c_str(), redundent, packet_num); /* redundent */
+    long packet_num;
+    int redundent;
+    generate_file_description(&input, buf, filename, redundent, packet_num);
+
     /* trans file */
     write(my_socket, buf, BUF_SIZE);
 
-    filesize = filesize/BUF_SIZE;
-    for (int i = 0; i < filesize; ++i) {
+    for (int i = 0; i < packet_num-1; ++i) {
         bzero(buf, BUF_SIZE);
         input.read(buf, BUF_SIZE);
         write(my_socket, buf, BUF_SIZE);
-        if (i % 2 == 0) {
-            load_bar(i, filesize+1, 15);
-        }
+        load_bar(i, packet_num, 15);
     }
     bzero(buf, BUF_SIZE);
     input.read(buf, redundent);
     input.close();
     write(my_socket, buf, redundent);
-    load_bar(filesize+1, filesize+1, 15);
+    load_bar(packet_num, packet_num, 15);
 
     printf("\nUpload %s complete!\n", filename.c_str());
 }
@@ -108,6 +120,7 @@ static void client(FILE* fp, int my_socket) {
     FD_ZERO(&read_set);
     int max_fd = my_socket + 1;
     int stdin_eof = 0;
+
     
     while (1) {
         FD_SET(my_socket, &read_set);
@@ -132,7 +145,18 @@ static void client(FILE* fp, int my_socket) {
                 return;
             }
             else {
-                cout << line;
+                char send_file[BUF_SIZE];
+                strncpy(send_file, line, 8); send_file[8] = '\0';
+                if (strcmp(send_file, "SENDFILE") == 0) {
+                    cout << "downloading!" << endl;
+                    download(line, my_socket);
+                }
+                else if (downloader.downloading) {
+                    download(line, my_socket);
+                }
+                else {
+                    cout << line;
+                }
             }
         }
 
@@ -196,6 +220,7 @@ int main (int argc, char* argv[]) {
         return 1;
     }
     write(my_socket, client_name.c_str(), client_name.size());
+    downloader.downloading = false;
 
     /* read the info */
     client(stdin, my_socket);

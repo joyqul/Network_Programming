@@ -1,6 +1,6 @@
 #include <iostream>
 #include <vector>
-#include <fstream>
+#include <queue>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -17,6 +17,7 @@
 #include <sys/wait.h>
 
 #include "../lib/readline.h"
+#include "../lib/files.h"
 #define QUE_SIZE 10
 #define MAX_CLIENT 20
 
@@ -29,12 +30,28 @@ struct STORE {
 
 vector<STORE> storehouse;
 
+struct UPLOAD {
+    long filesize;
+    int redundent, now;
+    int file_id;
+    ofstream fp;
+};
+
+struct DOWNLOAD {
+    long filesize;
+    int redundent, now;
+    int buf_used, buf_len, target;
+    char buf[BUF_SIZE];
+    ifstream fp;
+};
+
 struct CLIENT {
     int id;
     string name, ip, port;
-    int filesize, redundent, now;
-    ofstream upload;
     bool uploading, downloading;
+    UPLOAD upload;
+    DOWNLOAD download;
+    queue<int> download_queue;
 } client[MAX_CLIENT];
 
 static void bail(string on_what) {
@@ -77,57 +94,90 @@ static void change_name(int me, string target, int max_fd) {
     client[me].downloading = false;
 }
 
+static void download(int me) {
+    if (client[me].download_queue.size() == 0 && !client[me].downloading) return;
+    if (!client[me].downloading) {
+        int target = client[me].download_queue.front();
+        client[me].download_queue.pop();
+        client[me].download.fp.open(storehouse[target].filename.c_str(), ios::in | ios::binary);
+        if (client[me].download.fp.fail()) {
+            cout << "Your file is someting wrong\n";
+        }
+        generate_file_description(&client[me].download.fp, client[me].download.buf, storehouse[target].filename, 
+                client[me].download.redundent, client[me].download.filesize);
+        client[me].download.target = target;
+        client[me].downloading = true;
+        client[me].download.now = 0;
+        client[me].download.buf_used = 0;
+        client[me].download.buf_len = BUF_SIZE;
+        int nwrite = write(client[me].id, client[me].download.buf, BUF_SIZE);
+        if (nwrite < 0) {
+            bail("Write failed");
+        }
+        client[me].download.buf_used += nwrite;
+        cout << "nwrite: " << client[me].download.buf_used << endl;
+        return;
+    }
+
+    /* if buffer is empy, fill it */
+    if (client[me].download.buf_used == client[me].download.buf_len) {
+        if (client[me].download.now == client[me].download.filesize) {
+            client[me].downloading = false;
+            client[me].download.fp.close();
+            return;
+        }
+
+        client[me].download.buf_len = BUF_SIZE;
+        if (client[me].download.now == client[me].download.filesize - 1) {
+            client[me].download.buf_len = client[me].download.redundent;
+        }
+        bzero(client[me].download.buf, BUF_SIZE);
+        client[me].download.fp.read(client[me].download.buf, client[me].download.buf_len);
+        if (!client[me].download.fp) {
+            cout << "only read " << client[me].download.fp.gcount() << " world" << endl;
+        }
+        client[me].download.buf_used = 0;
+        ++client[me].download.now;
+    }
+
+    int nwrite = write(client[me].id, client[me].download.buf + client[me].download.buf_used, 
+            client[me].download.buf_len - client[me].download.buf_used);
+    if (nwrite < 0) {
+        bail("Write failed");
+    }
+    client[me].download.buf_used += nwrite;
+}
+
+static void give_file_to_others(int file_id, int me) {
+    for (int i = 0; i < MAX_CLIENT; ++i) {
+        if (i == me) continue;
+        client[i].download_queue.push(file_id);
+    }
+}
+
 static void init_upload(int me, string message) {
     STORE tmp;
-    int i;
-    for (i = 8; i < message.size(); ++i) {
-        if (message[i] == '\0') break;
-        if (message[i] == '\r') break;
-        if (message[i] == '\n') break;
-        tmp.filename += message[i];
-    }
-    cout << tmp.filename << endl;
-
-    ++i;
-    int redundent = 0;
-    for (; i < message.size(); ++i) {
-        if (message[i] == '\0') break;
-        if (message[i] == '\r') break;
-        if (message[i] == '\n') break;
-        redundent = redundent*10 + message[i] - '0';
-    }
-
-    ++i;
-    int filesize = 0;
-    for (; i < message.size(); ++i) {
-        if (message[i] == '\0') break;
-        if (message[i] == '\r') break;
-        if (message[i] == '\n') break;
-        filesize = filesize*10 + message[i] - '0';
-    }
-
+    get_file_description(message, tmp.filename, client[me].upload.redundent, client[me].upload.filesize);
     tmp.owner_client = me;
+    client[me].upload.file_id = storehouse.size();
     storehouse.push_back(tmp);
-    client[me].now = 0;
+    client[me].upload.now = 0;
     client[me].uploading = true;
-    client[me].redundent = redundent;
-    client[me].filesize = filesize;
-    client[me].upload.open(tmp.filename.c_str(), ios::binary);
-
-    cerr << redundent << " " << filesize << endl;
+    client[me].upload.fp.open(tmp.filename.c_str(), ios::out | ios::binary);
 }
 
 static void upload(int me, char line[]) {
     cout << "UPLOAD\n";
-    if (client[me].now == client[me].filesize - 1) {
-        client[me].upload.write(line, client[me].redundent*sizeof(char));
-        client[me].upload.close();
+    if (client[me].upload.now == client[me].upload.filesize - 1) {
+        client[me].upload.fp.write(line, client[me].upload.redundent*sizeof(char));
+        client[me].upload.fp.close();
         client[me].uploading = false;
+        give_file_to_others(client[me].upload.file_id, me);
         cout << "finish" << endl;
         return;
     }
-    ++client[me].now;
-    client[me].upload.write(line, (BUF_SIZE)*sizeof(char));
+    ++client[me].upload.now;
+    client[me].upload.fp.write(line, (BUF_SIZE)*sizeof(char));
 }
 
 int set_nonblocking(int fd) {
@@ -181,9 +231,6 @@ int main (int argc, char* argv[]) {
         bail("bind(2)");
         return 1;
     }
-
-    /* set non-blocking */
-    set_nonblocking(listen_socket);
 
     /* make it a listrning socket */
     check = listen(listen_socket, QUE_SIZE);
@@ -242,25 +289,28 @@ int main (int argc, char* argv[]) {
             /* check if exceeded server capacity, if not full, add it to client */
             int new_id = check_server_capacity(myclient);
             if (new_id < 0 && --nready <= 0) continue;
-            if (new_id < 0) break;
+            if (new_id >= 0) {
 
-            /* set connect to the set */
-            FD_SET(myclient, &read_set);
-            if (myclient + 1 > max_fd) max_fd = myclient + 1;
+                /* set connect to the set */
+                FD_SET(myclient, &read_set);
+                if (myclient + 1 > max_fd) max_fd = myclient + 1;
 
+                /* set non-blocking */
+                set_nonblocking(myclient);
 
-            /* client's address */
-            char client_addr_buff[BUF_SIZE];
-            inet_ntop(AF_INET, &client_socket_info.sin_addr, client_addr_buff, sizeof(client_addr_buff));
-            client[new_id].ip = client_addr_buff;
-            /* client's port */
-            int client_port_num = ntohs(client_socket_info.sin_port);
-            char client_port_buff[BUF_SIZE];
-            sprintf(client_port_buff, "%d", client_port_num);
-            client[new_id].port = client_port_buff;
+                /* client's address */
+                char client_addr_buff[BUF_SIZE];
+                inet_ntop(AF_INET, &client_socket_info.sin_addr, client_addr_buff, sizeof(client_addr_buff));
+                client[new_id].ip = client_addr_buff;
+                /* client's port */
+                int client_port_num = ntohs(client_socket_info.sin_port);
+                char client_port_buff[BUF_SIZE];
+                sprintf(client_port_buff, "%d", client_port_num);
+                client[new_id].port = client_port_buff;
 
-            /* no more descriptors */
-            if (--nready <= 0) continue;
+                /* no more descriptors */
+                if (--nready <= 0) continue;
+            }
         }
 
         /* readline */
@@ -282,7 +332,7 @@ int main (int argc, char* argv[]) {
                 else {
                     char name_cmp[BUF_SIZE], send_file[BUF_SIZE];
                     strncpy(name_cmp, line, 4); name_cmp[4] = '\0';
-                    strncpy(send_file, line, 8); name_cmp[8] = '\0';
+                    strncpy(send_file, line, 8); send_file[8] = '\0';
                     if (strcmp(name_cmp, "name") == 0) {
                         string target = line;
                         change_name(i, target, max_fd);
@@ -303,6 +353,13 @@ int main (int argc, char* argv[]) {
                 break;
             }
             max_fd = i + 1;
+        }
+
+        /* download */
+        for (int i = 0; i < MAX_CLIENT; ++i) {
+            if (FD_ISSET(client[i].id, &read_set)) {
+                download(i);
+            }
         }
 
     }
