@@ -48,7 +48,7 @@ struct DOWNLOAD {
 struct CLIENT {
     int id;
     string name, ip, port;
-    bool uploading, downloading;
+    bool uploading, downloading, initial;
     UPLOAD upload;
     DOWNLOAD download;
     queue<int> download_queue;
@@ -62,6 +62,7 @@ static int check_server_capacity(int myclient) {
     for (int client_entry = 0; client_entry < MAX_CLIENT; ++client_entry) {
         if (client[client_entry].id < 0) {
             client[client_entry].id = myclient;
+            client[client_entry].initial = false;
             client[client_entry].name = "anonymous";
             return client_entry;
         }
@@ -90,6 +91,7 @@ static void change_name(int me, string target, int max_fd) {
     string welcome_message = "Welcome to the dropbox-like server! : " + new_name + "\n";
     write(client[me].id, welcome_message.c_str(), welcome_message.size());
     client[me].name = new_name;
+    client[me].initial = true;
     client[me].uploading = false;
     client[me].downloading = false;
 }
@@ -133,9 +135,7 @@ static void download(int me) {
         }
         bzero(client[me].download.buf, BUF_SIZE);
         client[me].download.fp.read(client[me].download.buf, client[me].download.buf_len);
-        if (!client[me].download.fp) {
-            cout << "only read " << client[me].download.fp.gcount() << " world" << endl;
-        }
+        cout << "only read " << client[me].download.fp.gcount() << " world" << endl;
         client[me].download.buf_used = 0;
         ++client[me].download.now;
     }
@@ -146,6 +146,7 @@ static void download(int me) {
         bail("Write failed");
     }
     client[me].download.buf_used += nwrite;
+    cout << "nwrite: " << client[me].download.buf_used << endl;
 }
 
 static void give_file_to_others(int file_id, int me) {
@@ -269,7 +270,7 @@ int main (int argc, char* argv[]) {
         /* download */
         for (int i = 0; i < MAX_CLIENT; ++i) {
             if (FD_ISSET(client[i].id, &read_set)) {
-                download(i);
+                if (client[i].initial) download(i);
             }
         }
 
@@ -322,11 +323,11 @@ int main (int argc, char* argv[]) {
 
         /* readline */
         char line[BUF_SIZE];
-        bzero(line, BUF_SIZE);
         for (int i = 0; i < MAX_CLIENT; ++i) {
             int myclient = client[i].id;
             if ( myclient < 0) continue;
             if (FD_ISSET(myclient, &working_set)) {
+                bzero(line, BUF_SIZE);
                 /* connection closed by client */
                 if ( (check = read(myclient, line, BUF_SIZE)) == 0 ) {
                     close(myclient);
@@ -337,6 +338,7 @@ int main (int argc, char* argv[]) {
                     break;
                 }
                 else {
+                    cout << "check:" << check << endl;
                     char name_cmp[BUF_SIZE], send_file[BUF_SIZE];
                     strncpy(name_cmp, line, 4); name_cmp[4] = '\0';
                     strncpy(send_file, line, 8); send_file[8] = '\0';

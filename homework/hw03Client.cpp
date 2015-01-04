@@ -145,13 +145,10 @@ static void client(FILE* fp, int my_socket) {
                 return;
             }
             else {
+                cout << "check: " << check << endl;
                 char send_file[BUF_SIZE];
                 strncpy(send_file, line, 8); send_file[8] = '\0';
-                if (strcmp(send_file, "SENDFILE") == 0) {
-                    cout << "downloading!" << endl;
-                    download(line, my_socket);
-                }
-                else if (downloader.downloading) {
+                if (strcmp(send_file, "SENDFILE") == 0 || downloader.downloading) {
                     download(line, my_socket);
                 }
                 else {
