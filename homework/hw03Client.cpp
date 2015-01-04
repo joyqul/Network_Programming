@@ -158,6 +158,7 @@ static void client(FILE* fp, int my_socket) {
                     download(line, my_socket);
                 }
                 else {
+                    //cout << "qq" << endl;
                     cout << line;
                 }
             }

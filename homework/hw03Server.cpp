@@ -99,6 +99,7 @@ static void change_name(int me, string target, int max_fd) {
 
 static void download(int me) {
     if (client[me].download_queue.size() == 0 && !client[me].downloading) return;
+    usleep(500);
     if (!client[me].downloading) {
         //cout << "CHECK: " << me << " " << client[me].id << " " << client[me].download_queue.size() << endl;
         int target = client[me].download_queue.front();
@@ -107,7 +108,7 @@ static void download(int me) {
         if (client[me].download.fp.fail()) {
             cout << "Your file is someting wrong\n";
         }
-        //cout << storehouse[target].filename.c_str() << endl;
+        cout << storehouse[target].filename.c_str() << endl;
         generate_file_description(&client[me].download.fp, client[me].download.buf, storehouse[target].filename, 
                 client[me].download.redundent, client[me].download.filesize);
         client[me].download.target = target;
@@ -115,6 +116,7 @@ static void download(int me) {
         client[me].download.now = 0;
         client[me].download.buf_used = 0;
         client[me].download.buf_len = BUF_SIZE;
+        //cout << "WRITE: " << client[me].download.buf << endl;
         int nwrite = write(client[me].id, client[me].download.buf, BUF_SIZE);
         if (nwrite < 0) {
             bail("Write failed");
@@ -138,6 +140,7 @@ static void download(int me) {
         }
         bzero(client[me].download.buf, BUF_SIZE);
         client[me].download.fp.read(client[me].download.buf, client[me].download.buf_len);
+        //cout << "WRITE: " << client[me].download.buf << endl;
         //cout << "only read " << client[me].download.fp.gcount() << " world" << endl;
         client[me].download.buf_used = 0;
         ++client[me].download.now;
@@ -249,7 +252,7 @@ int main (int argc, char* argv[]) {
 
     /* initialize timeout */
     struct timeval timeout_value;
-    timeout_value.tv_sec = 1;
+    timeout_value.tv_sec = 2;
     timeout_value.tv_usec = 0;
 
     /* initialize to client */
