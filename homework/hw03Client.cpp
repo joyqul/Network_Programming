@@ -19,6 +19,7 @@ struct DOWNLOAD {
     long filesize;
     int redundent, now;
     bool downloading;
+    string filename;
     ofstream fp;
 } downloader;
 
@@ -45,21 +46,24 @@ static inline void load_bar(int now, int total, int width) {
 
 static void download(string message, int my_socket) {
     if (!downloader.downloading) {
-        string filename;
-        get_file_description(message, filename, downloader.redundent, downloader.filesize);
+        get_file_description(message, downloader.filename, downloader.redundent, downloader.filesize);
+        cout << "Downloading file : " << downloader.filename << endl;
         downloader.downloading = true;
         downloader.now = 0;
-        downloader.fp.open(filename.c_str(), ios::out | ios::binary);
+        downloader.fp.open(downloader.filename.c_str(), ios::out | ios::binary);
         return;
     }
     if (downloader.now == downloader.filesize - 1) {
         downloader.fp.write(message.c_str(), downloader.redundent*sizeof(char));
         downloader.fp.close();
         downloader.downloading = false;
+        load_bar(downloader.now+1, downloader.filesize, 15);
+        printf("\nDownload %s complete!\n", downloader.filename.c_str());
         return;
     }
     ++downloader.now;
     downloader.fp.write(message.c_str(), (BUF_SIZE)*sizeof(char));
+    load_bar(downloader.now, downloader.filesize, 15);
 }
 
 static void upload(string message, int my_socket) {
@@ -74,6 +78,7 @@ static void upload(string message, int my_socket) {
         cerr << "No such file: " << filename << endl;
         return;
     }
+    cout << "Uploading file : " << filename << endl;
 
     /* file size */
     char buf[BUF_SIZE];
@@ -145,7 +150,7 @@ static void client(FILE* fp, int my_socket) {
                 return;
             }
             else {
-                cout << "check: " << check << endl;
+                //cout << "check: " << check << endl;
                 char send_file[BUF_SIZE];
                 strncpy(send_file, line, 8); send_file[8] = '\0';
                 if (strcmp(send_file, "SENDFILE") == 0 || downloader.downloading) {
