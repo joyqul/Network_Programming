@@ -247,6 +247,8 @@ int main (int argc, char* argv[]) {
 
     /* initialize timeout */
     struct timeval timeout_value;
+    timeout_value.tv_sec = 1;
+    timeout_value.tv_usec = 0;
 
     /* initialize to client */
     for (int i = 0; i < MAX_CLIENT; ++i) {
@@ -264,6 +266,13 @@ int main (int argc, char* argv[]) {
             }
         }
         
+        /* download */
+        for (int i = 0; i < MAX_CLIENT; ++i) {
+            if (FD_ISSET(client[i].id, &read_set)) {
+                download(i);
+            }
+        }
+
         /* check ready */
         int nready = select(max_fd, &working_set, NULL, NULL, &timeout_value);
         if (nready == -1) {
@@ -271,10 +280,8 @@ int main (int argc, char* argv[]) {
             return 1;
         }
         else if (!nready) {
-            cout << "Timeout.\n";
             continue;
         }
-
 
         /* check if a connect has occured */
         if (FD_ISSET(listen_socket, &working_set)) {
@@ -353,13 +360,6 @@ int main (int argc, char* argv[]) {
                 break;
             }
             max_fd = i + 1;
-        }
-
-        /* download */
-        for (int i = 0; i < MAX_CLIENT; ++i) {
-            if (FD_ISSET(client[i].id, &read_set)) {
-                download(i);
-            }
         }
 
     }
