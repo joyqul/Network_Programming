@@ -74,13 +74,6 @@ static int check_server_capacity(int myclient) {
     return -1;
 }
 
-static void broadcast(string message, int max_fd) {
-    for (int i = 0; i < max_fd; ++i) {
-        if (client[i].id < 0) continue;
-        write(client[i].id, message.c_str(), message.size());
-    }
-}
-
 static void change_name(int me, string target, int max_fd) {
     string new_name, message;
 
@@ -104,6 +97,7 @@ static void download(int me) {
         //cout << "CHECK: " << me << " " << client[me].id << " " << client[me].download_queue.size() << endl;
         int target = client[me].download_queue.front();
         client[me].download_queue.pop();
+        if (client[storehouse[target].owner_client].name != client[me].name) return;
         client[me].download.fp.open(storehouse[target].filename.c_str(), ios::in | ios::binary);
         if (client[me].download.fp.fail()) {
             cout << "Your file is someting wrong\n";
@@ -337,8 +331,6 @@ int main (int argc, char* argv[]) {
                     close(myclient);
                     FD_CLR(myclient, &read_set);
                     client[i].id = -1;
-                    string message = client[i].name + " is offline.\n";
-                    broadcast(message, max_fd);
                     break;
                 }
                 else {
