@@ -65,6 +65,7 @@ static int check_server_capacity(int myclient) {
             client[client_entry].id = myclient;
             client[client_entry].initial = false;
             client[client_entry].name = "anonymous";
+            for (int i = 0; i < storehouse.size(); ++i) client[client_entry].download_queue.push(i);
             return client_entry;
         }
     }
@@ -151,6 +152,7 @@ static void download(int me) {
 static void give_file_to_others(int file_id, int me) {
     for (int i = 0; i < MAX_CLIENT; ++i) {
         if (i == me) continue;
+        if (client[i].id < 0) continue;
         client[i].download_queue.push(file_id);
     }
 }
