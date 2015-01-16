@@ -45,8 +45,10 @@ static void str_echo(int myclient) {
 }
 
 static void * doit(void *arg) {
+    int myarg = *(int *)arg;
+    free(arg);
+    
     pthread_detach(pthread_self()); // detech myself immidiately
-    long long myarg = (long long)arg;
     str_echo(myarg);
     close(myarg);
     return (NULL);
@@ -95,7 +97,7 @@ int tcp_listen(const char *host, const char *serv, socklen_t *addrlenp) {
 }
 
 int main(int argc, char* argv[]) {
-    int listenfd, connfd;
+    int listenfd, *iptr;
     pthread_t tid;
     socklen_t addrlen, len;
     struct sockaddr *cliaddr;
@@ -115,7 +117,8 @@ int main(int argc, char* argv[]) {
 
     while (1) {
         len = addrlen;
-        connfd = accept(listenfd, cliaddr, &len);
-        pthread_create(&tid, NULL, &doit, (void *) connfd);
+        iptr = (int *)malloc(sizeof(int));
+        *iptr = accept(listenfd, cliaddr, &len);
+        pthread_create(&tid, NULL, &doit, iptr);
     }
 }
