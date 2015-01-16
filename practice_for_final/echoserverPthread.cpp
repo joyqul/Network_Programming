@@ -32,7 +32,7 @@ static void str_echo(int myclient) {
     bzero(line, BUF_SIZE);
 
     while (1) {
-        if ( (n = readline(myclient, line, BUF_SIZE)) == 0) {
+        if ( (n = readline_r(myclient, line, BUF_SIZE)) == 0) {
             return; /* connection closed by other end */
         }
         int check = write(myclient, line, sizeof(line));
