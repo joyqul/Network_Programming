@@ -28,3 +28,21 @@ int main () {
     pthread_join(tidB, NULL);
     return 0;
 }
+
+/* usful function
+   int pthread_cond_wait(pthread_cond_t *cptr, pthread_mutex_t *mptr);
+   int pthread_cond_signal(pthread_cond_t *cptr);
+
+   pthread_mutex_t ndone_mutex = PTHREAD_MUTEX_INITIALIZER;
+   pthread_cond_t ndone_cond = PTHREAD_COND_INITIALIZER;
+   pthread_mutex_lock(&ndone_mutex);
+   ndone++;
+   pthread_cond_signal(&ndone_cond);
+   pthread_mutex_unlock(&ndone_mutex);
+
+   pthread_mutex_lock(&ndone_mutex);
+   while (ndone == 0) pthread_cond_wait(&ndone_cond, &ndone_mutex);
+   
+   int pthread_cond_broadcast(pthread_cond_t *cptr);
+   int pthread_cond_timedwait(pthread_cond_t *cptr, pthread_mutex_t *mptr, const struct timespec *abstime);
+ */
